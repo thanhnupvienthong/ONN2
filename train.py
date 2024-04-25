@@ -7,6 +7,7 @@ LastEditTime: 2021-12-23 23:56:38
 '''
 #!/usr/bin/env python
 # coding=UTF-8
+import matplotlib.pyplot as plt
 import argparse
 import socket
 import os
@@ -26,6 +27,12 @@ from pyutils.torch_train import (BestKModelSaver, count_parameters,
                                  get_learning_rate, load_model,
                                  set_torch_deterministic)
 from pyutils.typing import Criterion, DataLoader, Optimizer, Scheduler
+
+# Initialize lists to store metrics
+train_losses = []
+train_accuracies = []
+val_losses = []
+val_accuracies = []
 
 
 def train(
@@ -78,6 +85,8 @@ def train(
         f"Train Accuracy: {correct}/{len(train_loader.dataset)} ({accuracy:.2f})%")
     mlflow.log_metrics({"train_acc": accuracy.item(),
                         "lr": get_learning_rate(optimizer)}, step=epoch)
+    train_losses.append(loss.data.item())
+    train_accuracies.append(accuracy.item())
 
 def validate(
         model: nn.Module,
@@ -110,7 +119,29 @@ def validate(
         val_loss, correct, len(validation_loader.dataset), accuracy))
     mlflow.log_metrics({"val_acc": accuracy.data.item(),
                         "val_loss": val_loss}, step=epoch)
+    val_losses.append(val_loss)
+    val_accuracies.append(accuracy.data.item())
 
+def plot_metrics():
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(train_accuracies, label='Train Accuracy')
+    plt.plot(val_accuracies, label='Validation Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.tight_layout()
+    # Save the figure before showing it
+    plt.savefig('metrics_plot.png')
+    plt.show()
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -230,6 +261,8 @@ def main() -> None:
                 save_model=False,
                 print_msg=True
             )
+         # Call the plot function after training and validation
+        plot_metrics()
     except KeyboardInterrupt:
         lg.warning("Ctrl-C Stopped")
 
